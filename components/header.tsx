@@ -42,6 +42,11 @@ export function Header() {
       label: "Prompter",
       icon: Sparkles,
     },
+    {
+      href: "/ipr-repository",
+      label: "IPR Hub",
+      icon: Wallet,
+    },
   ];
 
   if(user) {

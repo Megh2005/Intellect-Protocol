@@ -49,6 +49,31 @@ export default function GeneratePage() {
   const [isRegistering, setIsRegistering] = useState(false);
 
   const [cachedImageUrl, setCachedImageUrl] = useState<string | null>(null);
+  const [remainingImages, setRemainingImages] = useState<number | null>(null);
+
+  const fetchUsage = async (address: string, email?: string | null) => {
+    try {
+      const params = new URLSearchParams();
+      if (address) params.append("walletAddress", address);
+      if (email) params.append("email", email);
+
+      const response = await fetch(`/api/user-usage?${params.toString()}`);
+      const data = await response.json();
+      if (data.remaining !== undefined) {
+        setRemainingImages(data.remaining);
+      }
+    } catch (error) {
+      console.error("Error fetching usage:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (wallet.isConnected && wallet.address) {
+      fetchUsage(wallet.address, user?.email);
+    } else {
+      setRemainingImages(null);
+    }
+  }, [wallet.isConnected, wallet.address, user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -98,6 +123,7 @@ export default function GeneratePage() {
         body: JSON.stringify({
           prompt: fullPrompt,
           walletAddress: wallet.address,
+          email: user?.email,
         }),
       });
 
@@ -109,6 +135,10 @@ export default function GeneratePage() {
         toast.success("Creation complete!", {
           description: "Your new image has been successfully generated.",
         });
+        // Refresh usage count
+        if (wallet.address) {
+          fetchUsage(wallet.address, user?.email);
+        }
       } else {
         throw new Error(data.error);
       }
@@ -291,9 +321,42 @@ export default function GeneratePage() {
               />
             </div>
 
+            {/* Progress Bar for Credits */}
+            {remainingImages !== null && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-medium">
+                  <span className="text-muted-foreground">Daily Credits</span>
+                  <span
+                    className={
+                      remainingImages === 0 ? "text-red-500" : "text-primary"
+                    }
+                  >
+                    {remainingImages}/2 Remaining
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(remainingImages / 2) * 100}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className={`h-full rounded-full ${
+                      remainingImages === 0 ? "bg-red-500" : "bg-primary"
+                    }`}
+                  />
+                </div>
+                {remainingImages === 0 && (
+                  <p className="text-xs text-red-400 mt-1">
+                    You have reached your daily limit of 2 images.
+                  </p>
+                )}
+              </div>
+            )}
+
             <Button
               onClick={handleGenerate}
-              disabled={isGenerating || !wallet.isConnected}
+              disabled={
+                isGenerating || !wallet.isConnected || remainingImages === 0
+              }
               size="lg"
               className="w-full bg-primary text-black border-0 hover:opacity-90 transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.5)] text-lg px-12 py-8 h-auto rounded-full font-bold"
             >
