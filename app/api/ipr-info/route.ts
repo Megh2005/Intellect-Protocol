@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     if (question && context) {
       // Follow-up question logic
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const prompt = `Based on the following IPR information for ${country}, answer the user's question.
+      const prompt = `Based on the following IPR information for ${country}, answer the user's question. Provide a very concise and short answer in plain text format only. Do not include any formatting like bullet points or bold text.
         Context: ${JSON.stringify(context)}
         Question: ${question}`;
 

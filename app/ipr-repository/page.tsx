@@ -88,6 +88,7 @@ const IprRepositoryPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [isChatting, setIsChatting] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
@@ -157,6 +158,7 @@ const IprRepositoryPage = () => {
     e.preventDefault();
     if (!chatInput.trim() || !iprInfo) return;
 
+    setIsChatting(true);
     const newChatHistory: ChatMessage[] = [
       ...chatHistory,
       { sender: "user", message: chatInput },
@@ -196,6 +198,8 @@ const IprRepositoryPage = () => {
         },
       ]);
       toast.error("Something went wrong.", { id: toastId });
+    } finally {
+      setIsChatting(false);
     }
   };
 
@@ -449,11 +453,11 @@ const IprRepositoryPage = () => {
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         className="flex-1 bg-white/5 border border-white/10 rounded-full px-6 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors"
-                        disabled={!iprInfo}
+                        disabled={!iprInfo || isChatting}
                       />
                       <Button
                         type="submit"
-                        disabled={!iprInfo || !chatInput.trim()}
+                        disabled={!iprInfo || !chatInput.trim() || isChatting}
                         className="bg-primary text-black rounded-full hover:bg-primary/90"
                       >
                         Send
