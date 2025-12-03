@@ -71,6 +71,7 @@ export default function DisputePage() {
           targetTag: disputeType,
           evidence,
           walletAddress: wallet.address,
+          creatorAddress,
         }),
       });
 

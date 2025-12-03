@@ -3,6 +3,9 @@ import { getServerStoryClient } from '@/lib/story-protocol';
 import { uploadToIPFS } from '@/lib/pinata';
 import { DisputeTargetTag } from '@story-protocol/core-sdk';
 import { parseEther } from 'viem';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import * as SibApiV3Sdk from "@sendinblue/client";
 
 export async function POST(request: NextRequest) {
     try {
@@ -14,7 +17,8 @@ export async function POST(request: NextRequest) {
             targetIpId,
             targetTag,
             evidence,
-            walletAddress
+            walletAddress,
+            creatorAddress // Added creatorAddress to find the owner
         } = await request.json();
 
         if (!targetIpId || !targetTag || !evidence || !walletAddress) {
@@ -33,8 +37,8 @@ export async function POST(request: NextRequest) {
             targetTag,
             liveness: 2592000, // 30 days
             bond: "0.1 IP",
-            counterEvidence: "Pending", // Placeholder for future counter evidence
-            appealed: "No" // Initial state
+            counterEvidence: "Pending",
+            appealed: "No"
         };
 
         const evidenceCid = await uploadToIPFS(evidenceData, `dispute_evidence_${targetIpId}.json`);
@@ -49,10 +53,82 @@ export async function POST(request: NextRequest) {
             liveness: 2592000, // 30 days in seconds
         });
 
+        const disputeId = response.disputeId ? response.disputeId.toString() : undefined;
+
+        // Save dispute to Firestore
+        try {
+            await addDoc(collection(db, "disputes"), {
+                disputeId,
+                targetIpId,
+                targetTag,
+                evidence,
+                evidenceCid,
+                raiserAddress: walletAddress,
+                creatorAddress,
+                txHash: response.txHash,
+                createdAt: new Date().toISOString(),
+                status: "Raised"
+            });
+
+            // Send Email to Creator
+            if (creatorAddress) {
+                console.log('\x1b[36m%s\x1b[0m', '🔍 Looking up creator details for address:', creatorAddress);
+                const usersRef = collection(db, "users");
+                const q = query(usersRef, where("walletAddress", "==", creatorAddress));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const userDoc = querySnapshot.docs[0].data();
+                    const creatorEmail = userDoc.email;
+                    console.log('\x1b[32m%s\x1b[0m', '✅ Creator found:', userDoc.username);
+
+                    if (creatorEmail) {
+                        console.log('\x1b[33m%s\x1b[0m', '📧 Preparing to send email to:', creatorEmail);
+                        const disputeUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://intellect-protocol.vercel.app'}/disputes/${disputeId}`;
+
+                        // Send email directly using Brevo SDK
+                        if (process.env.BREVO_API_KEY && process.env.NEXT_PUBLIC_SENDER_EMAIL) {
+                            console.log('\x1b[34m%s\x1b[0m', '🚀 Initializing Brevo SDK...');
+                            const brevo = new SibApiV3Sdk.TransactionalEmailsApi();
+                            brevo.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+
+                            try {
+                                await brevo.sendTransacEmail({
+                                    to: [{ email: creatorEmail, name: userDoc.username || "Creator" }],
+                                    sender: { email: process.env.NEXT_PUBLIC_SENDER_EMAIL, name: "Team Intellect Protocol" },
+                                    subject: `Action Required: Dispute Raised Against Your IP ${targetIpId}`,
+                                    htmlContent: `
+                                    <h1>Dispute Notification</h1>
+                                    <p>A dispute has been raised against your IP Asset <strong>${targetIpId}</strong>.</p>
+                                    <p><strong>Reason:</strong> ${targetTag}</p>
+                                    <p><strong>Evidence:</strong> ${evidence}</p>
+                                    <p><strong>Dispute ID:</strong> ${disputeId}</p>
+                                    <p>Please review the dispute details immediately.</p>
+                                    <a href="${disputeUrl}" style="background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Dispute</a>
+                                `
+                                });
+                                console.log('\x1b[32m%s\x1b[0m', '✨ Email sent successfully to:', creatorEmail);
+                            } catch (emailError) {
+                                console.error('\x1b[31m%s\x1b[0m', '❌ Failed to send email:', emailError);
+                            }
+                        } else {
+                            console.warn('\x1b[33m%s\x1b[0m', '⚠️ BREVO_API_KEY or NEXT_PUBLIC_SENDER_EMAIL missing');
+                        }
+                    } else {
+                        console.log('\x1b[33m%s\x1b[0m', '⚠️ Creator has no email registered');
+                    }
+                } else {
+                    console.log('\x1b[33m%s\x1b[0m', '⚠️ Creator not found in database');
+                }
+            }
+        } catch (dbError) {
+            console.error("Error saving dispute or sending email:", dbError);
+        }
+
         return NextResponse.json({
             success: true,
             txHash: response.txHash,
-            disputeId: response.disputeId ? response.disputeId.toString() : undefined,
+            disputeId,
             evidenceCid
         });
 
