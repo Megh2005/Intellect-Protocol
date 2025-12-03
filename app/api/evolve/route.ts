@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerStoryClient, commercialRemixTerms, creativeCommonsTerms } from '@/lib/story-protocol';
+import { getServerStoryClient } from '@/lib/story-protocol';
 import { uploadToIPFS } from '@/lib/pinata';
 import { createHash } from 'crypto';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, updateDoc, arrayUnion, doc } from 'firebase/firestore';
+import { updateDoc, arrayUnion, doc } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,23 +16,23 @@ export async function POST(request: NextRequest) {
             imageName,
             prompt,
             walletAddress,
-            existingImageUrl,
             description,
             attributes,
-            creators, // New field for multiple creators
-            licenseType,
+            creators,
             userId,
-            mintLicenseAmount // New field for auto-minting
+            parentIpId,
+            licenseTermsId,
+            mintLicenseAmount
         } = await request.json();
 
         if (
-            (!imageBuffer && !existingImageUrl) ||
+            !imageBuffer ||
             !imageName ||
             !prompt ||
             !walletAddress ||
             !userId ||
-            !creators ||
-            creators.length === 0
+            !parentIpId ||
+            !licenseTermsId
         ) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
@@ -51,44 +51,34 @@ export async function POST(request: NextRequest) {
             return `${gateway}/ipfs/${cid}`;
         };
 
-        let imageUrl = existingImageUrl;
-        let imageCid = '';
-        let imageHash = '';
+        // Upload Image
+        const buffer = Buffer.from(imageBuffer, 'base64');
+        const imageCid = await uploadToIPFS(buffer, `${imageName}.png`);
+        const imageUrl = getGatewayUrl(imageCid);
+        const imageHash = createHash('sha256').update(buffer).digest('hex');
 
-        if (!imageUrl) {
-            const buffer = Buffer.from(imageBuffer, 'base64');
-            imageCid = await uploadToIPFS(buffer, `${imageName}.png`);
-            imageUrl = getGatewayUrl(imageCid);
-            imageHash = createHash('sha256').update(buffer).digest('hex');
-        } else {
-            const response = await fetch(imageUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            imageHash = createHash('sha256').update(buffer).digest('hex');
-            const matches = imageUrl.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-            imageCid = matches ? matches[1] : '';
-        }
-
+        // IP Metadata
         const ipMetadata = {
             title: imageName,
-            description: description || `AI generated image: ${prompt}`,
+            description: description || `Evolution of ${parentIpId}`,
             createdAt: Math.floor(Date.now() / 1000).toString(),
             image: imageUrl,
             imageHash: `0x${imageHash}`,
             mediaUrl: imageUrl,
             mediaHash: `0x${imageHash}`,
             mediaType: "image/png",
-            creators: creators, // Use the provided creators array
+            creators: creators,
+            parentIpId: parentIpId,
         };
 
+        // NFT Metadata
         const nftMetadata = {
             name: imageName,
-            description: description || `AI generated NFT: ${prompt}`,
+            description: description || `Evolution of ${parentIpId}`,
             image: imageUrl,
             attributes: attributes || [
-                { key: "Model", value: " Stability AI" },
-                { key: "Prompt", value: prompt },
-                { key: "Generator", value: "Intellect Protocol" },
+                { key: "Type", value: "Evolution" },
+                { key: "Parent IP", value: parentIpId },
             ],
         };
 
@@ -98,16 +88,19 @@ export async function POST(request: NextRequest) {
         const nftMetadataCid = await uploadToIPFS(nftMetadata, `${imageName}_nft_metadata.json`);
         const nftMetadataHash = createHash('sha256').update(JSON.stringify(nftMetadata)).digest('hex');
 
-        const selectedTerms = licenseType === 'creative-commons' ? creativeCommonsTerms : commercialRemixTerms;
-
         const storyClient = await getServerStoryClient();
 
-        const response = await storyClient.ipAsset.registerIpAsset({
+        const derivData = {
+            parentIpIds: [parentIpId as `0x${string}`],
+            licenseTermsIds: [licenseTermsId],
+        };
+
+        const response = await storyClient.ipAsset.registerDerivativeIpAsset({
             nft: {
                 type: 'mint',
                 spgNftContract: '0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc',
             },
-            licenseTermsData: [{ terms: selectedTerms }],
+            derivData,
             ipMetadata: {
                 ipMetadataURI: getGatewayUrl(ipMetadataCid),
                 ipMetadataHash: `0x${ipMetadataHash}`,
@@ -115,6 +108,33 @@ export async function POST(request: NextRequest) {
                 nftMetadataHash: `0x${nftMetadataHash}`,
             },
         });
+
+        // If user wants to mint license tokens
+        if (mintLicenseAmount && mintLicenseAmount > 0) {
+            try {
+                // 1. Register and Attach License Terms to the new Derivative IP
+                const { commercialRemixTerms } = await import('@/lib/story-protocol');
+                const attachResponse = await storyClient.license.registerPilTermsAndAttach({
+                    ipId: response.ipId as `0x${string}`,
+                    licenseTermsData: [{ terms: commercialRemixTerms }]
+                });
+
+                if (attachResponse.licenseTermsIds && attachResponse.licenseTermsIds.length > 0) {
+                    // 2. Mint License Tokens
+                    await storyClient.license.mintLicenseTokens({
+                        licenseTermsId: attachResponse.licenseTermsIds[0],
+                        licensorIpId: response.ipId as `0x${string}`,
+                        receiver: walletAddress as `0x${string}`,
+                        amount: mintLicenseAmount,
+                        maxMintingFee: BigInt(0),
+                        maxRevenueShare: 100
+                    });
+                }
+            } catch (mintError) {
+                console.error("Error minting license tokens for derivative:", mintError);
+                // Continue execution, don't fail the whole request
+            }
+        }
 
         const explorerUrl = `https://aeneid.explorer.story.foundation/ipa/${response.ipId}`;
 
@@ -126,9 +146,9 @@ export async function POST(request: NextRequest) {
             txHash: response.txHash,
             imageName: imageName,
             prompt: prompt,
-            licenseType: licenseType,
-            licenseTermsIds: response.licenseTermsIds?.map(id => id.toString()) || [],
+            licenseType: "Evolution", // Custom type for UI
             registeredAt: new Date().toISOString(),
+            parentIpId: parentIpId,
         };
 
         // Update user document in Firestore
@@ -136,28 +156,6 @@ export async function POST(request: NextRequest) {
         await updateDoc(userDocRef, {
             registeredIps: arrayUnion(registeredIp)
         });
-
-        let mintTxHash = '';
-        let licenseTokenIds: string[] = [];
-
-        // Auto-mint license tokens if requested
-        if (mintLicenseAmount && mintLicenseAmount > 0 && response.licenseTermsIds && response.licenseTermsIds.length > 0 && response.ipId) {
-            try {
-                const mintResponse = await storyClient.license.mintLicenseTokens({
-                    licenseTermsId: response.licenseTermsIds[0],
-                    licensorIpId: response.ipId as `0x${string}`,
-                    receiver: walletAddress as `0x${string}`,
-                    amount: mintLicenseAmount,
-                    maxMintingFee: BigInt(0), // disabled
-                    maxRevenueShare: 100, // default
-                });
-                mintTxHash = mintResponse.txHash || '';
-                licenseTokenIds = mintResponse.licenseTokenIds?.map(id => id.toString()) || [];
-            } catch (mintError) {
-                console.error("Error auto-minting licenses:", mintError);
-                // We don't fail the whole request if minting fails, just log it
-            }
-        }
 
         return NextResponse.json({
             success: true,
@@ -167,14 +165,12 @@ export async function POST(request: NextRequest) {
             imageCid,
             ipMetadataCid,
             nftMetadataCid,
-            mintTxHash,
-            licenseTokenIds
         });
 
     } catch (error: any) {
-        console.error('Error registering IP:', error);
+        console.error('Error evolving IP:', error);
         return NextResponse.json(
-            { error: error.message || 'Failed to register IP' },
+            { error: error.message || 'Failed to evolve IP' },
             { status: 500 }
         );
     }

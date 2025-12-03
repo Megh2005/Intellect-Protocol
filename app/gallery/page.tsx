@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ExternalLink,
   Loader2,
   User as UserIcon,
   Image as ImageIcon,
+  GitMerge,
+  ShieldAlert,
 } from "lucide-react";
 import {
   Card,
@@ -16,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useWalletContext } from "@/components/wallet-provider";
 
 interface IPAsset {
   ipId: string;
@@ -29,9 +32,11 @@ interface IPAsset {
   creatorName: string;
   creatorAddress: string;
   creatorAvatar?: string;
+  licenseTermsIds?: string[];
 }
 
 export default function GalleryPage() {
+  const { wallet } = useWalletContext();
   const [ips, setIps] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +46,7 @@ export default function GalleryPage() {
         const response = await fetch("/api/gallery");
         const data = await response.json();
         if (data.ips) {
+          console.log("Fetched IPs:", data.ips);
           setIps(data.ips);
         }
       } catch (error) {
@@ -82,16 +88,17 @@ export default function GalleryPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+              className="group h-full"
             >
-              <Card className="neo-card border-white/10 bg-white/5 overflow-hidden hover:border-primary/50 transition-all duration-300 group h-full flex flex-col">
+              <Card className="neo-card border-white/10 bg-white/5 overflow-hidden hover:border-primary/50 transition-all duration-300 h-full flex flex-col">
                 <div className="relative aspect-square overflow-hidden bg-black/20">
                   <img
                     src={ip.imageUrl}
                     alt={ip.imageName}
                     className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                    <p className="text-sm text-white/90 line-clamp-2">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                    <p className="text-sm text-white/90 line-clamp-2 font-medium">
                       {ip.prompt}
                     </p>
                   </div>
@@ -126,14 +133,59 @@ export default function GalleryPage() {
                   </div>
                 </CardContent>
 
-                <CardFooter className="p-4 pt-0">
+                <CardFooter className="p-4 pt-0 flex flex-col gap-3">
+                  <div className="flex w-full gap-2">
+                    <Button
+                      variant="secondary"
+                      className="flex-1 gap-2 group-hover:bg-primary group-hover:text-black transition-colors"
+                      onClick={() => window.open(ip.explorerUrl, "_blank")}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      View
+                    </Button>
+                    {ip.licenseTermsIds && ip.licenseTermsIds.length > 0 && (
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2 border-primary/50 text-primary hover:bg-primary hover:text-black"
+                        onClick={() =>
+                          (window.location.href = `/evolve/${
+                            ip.ipId
+                          }?licenseTermsId=${
+                            ip.licenseTermsIds![0]
+                          }&parentImageUrl=${encodeURIComponent(
+                            ip.imageUrl
+                          )}&parentIpName=${encodeURIComponent(ip.imageName)}`)
+                        }
+                      >
+                        <GitMerge className="w-4 h-4" />
+                        Evolve
+                      </Button>
+                    )}
+                  </div>
+
                   <Button
-                    variant="secondary"
-                    className="w-full gap-2 group-hover:bg-primary group-hover:text-black transition-colors"
-                    onClick={() => window.open(ip.explorerUrl, "_blank")}
+                    variant="ghost"
+                    className="w-full gap-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 transition-all duration-300"
+                    onClick={() =>
+                      (window.location.href = `/dispute/${
+                        ip.ipId
+                      }?imageUrl=${encodeURIComponent(
+                        ip.imageUrl
+                      )}&imageName=${encodeURIComponent(
+                        ip.imageName
+                      )}&prompt=${encodeURIComponent(
+                        ip.prompt
+                      )}&creatorName=${encodeURIComponent(
+                        ip.creatorName
+                      )}&creatorAddress=${encodeURIComponent(
+                        ip.creatorAddress
+                      )}&creatorAvatar=${encodeURIComponent(
+                        ip.creatorAvatar || ""
+                      )}`)
+                    }
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    View on Story
+                    <ShieldAlert className="w-4 h-4" />
+                    Raise Dispute
                   </Button>
                 </CardFooter>
               </Card>
