@@ -19,12 +19,10 @@ export async function POST(request: NextRequest) {
             existingImageUrl,
             description,
             attributes,
-            creatorName,
-            creatorDescription,
-            contributionPercent,
-            twitterHandle,
+            creators, // New field for multiple creators
             licenseType,
-            userId 
+            userId,
+            mintLicenseAmount // New field for auto-minting
         } = await request.json();
 
         if (
@@ -32,7 +30,9 @@ export async function POST(request: NextRequest) {
             !imageName ||
             !prompt ||
             !walletAddress ||
-            !userId
+            !userId ||
+            !creators ||
+            creators.length === 0
         ) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
@@ -78,19 +78,12 @@ export async function POST(request: NextRequest) {
             mediaUrl: imageUrl,
             mediaHash: `0x${imageHash}`,
             mediaType: "image/png",
-            creators: [
-                {
-                    name: creatorName,
-                    address: walletAddress,
-                    description: creatorDescription || "Generated with Story Protocol",
-                    contributionPercent: contributionPercent || 100,
-                },
-            ],
+            creators: creators, // Use the provided creators array
         };
 
         const nftMetadata = {
             name: imageName,
-            description: `AI generated NFT: ${prompt}`,
+            description: description || `AI generated NFT: ${prompt}`,
             image: imageUrl,
             attributes: attributes || [
                 { key: "Model", value: " Stability AI" },
@@ -143,6 +136,28 @@ export async function POST(request: NextRequest) {
             registeredIps: arrayUnion(registeredIp)
         });
 
+        let mintTxHash = '';
+        let licenseTokenIds: string[] = [];
+
+        // Auto-mint license tokens if requested
+        if (mintLicenseAmount && mintLicenseAmount > 0 && response.licenseTermsIds && response.licenseTermsIds.length > 0 && response.ipId) {
+            try {
+                const mintResponse = await storyClient.license.mintLicenseTokens({
+                    licenseTermsId: response.licenseTermsIds[0],
+                    licensorIpId: response.ipId as `0x${string}`,
+                    receiver: walletAddress as `0x${string}`,
+                    amount: mintLicenseAmount,
+                    maxMintingFee: BigInt(0), // disabled
+                    maxRevenueShare: 100, // default
+                });
+                mintTxHash = mintResponse.txHash || '';
+                licenseTokenIds = mintResponse.licenseTokenIds?.map(id => id.toString()) || [];
+            } catch (mintError) {
+                console.error("Error auto-minting licenses:", mintError);
+                // We don't fail the whole request if minting fails, just log it
+            }
+        }
+
         return NextResponse.json({
             success: true,
             txHash: response.txHash,
@@ -150,7 +165,9 @@ export async function POST(request: NextRequest) {
             explorerUrl,
             imageCid,
             ipMetadataCid,
-            nftMetadataCid
+            nftMetadataCid,
+            mintTxHash,
+            licenseTokenIds
         });
 
     } catch (error: any) {

@@ -2,7 +2,17 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useWalletContext } from "@/components/wallet-provider";
-import { Home, PlusSquare, Wallet, Sparkles, Menu, X, User as UserIcon } from "lucide-react";
+import {
+  Home,
+  Upload,
+  PlusSquare,
+  Wallet,
+  Sparkles,
+  Menu,
+  X,
+  User as UserIcon,
+  Image as ImageIcon,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth, db } from "@/lib/firebase";
@@ -22,7 +32,7 @@ export function Header() {
       if (user) {
         setUser(user);
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        if(userDoc.exists()) {
+        if (userDoc.exists()) {
           setAvatarUrl(userDoc.data().avatarUrl);
         }
       } else {
@@ -37,6 +47,8 @@ export function Header() {
   const navLinks = [
     { href: "/", label: "Home", icon: Home },
     { href: "/generate", label: "Generate", icon: PlusSquare },
+    { href: "/mint", label: "Mint", icon: Upload },
+    { href: "/gallery", label: "Gallery", icon: ImageIcon },
     {
       href: "/prompt-generator",
       label: "Prompter",
@@ -49,7 +61,7 @@ export function Header() {
     },
   ];
 
-  if(user) {
+  if (user) {
     navLinks.push({ href: "/profile", label: "Profile", icon: UserIcon });
   }
 
@@ -87,23 +99,23 @@ export function Header() {
             <div className="hidden md:block">
               {wallet.isConnected ? (
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-white/5">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-sm font-mono text-muted-foreground">
-                        {wallet.address?.slice(0, 6)}...
-                        {wallet.address?.slice(-4)}
-                        </span>
-                    </div>
-                    {avatarUrl && (
-                      <Link href="/profile">
-                        <Avatar className="w-10 h-10 border-2 border-primary">
-                          <AvatarImage src={avatarUrl} />
-                          <AvatarFallback>
-                            <UserIcon />
-                          </AvatarFallback>
-                        </Avatar>
-                      </Link>
-                    )}
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-white/5">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-sm font-mono text-muted-foreground">
+                      {wallet.address?.slice(0, 6)}...
+                      {wallet.address?.slice(-4)}
+                    </span>
+                  </div>
+                  {avatarUrl && (
+                    <Link href="/profile">
+                      <Avatar className="w-10 h-10 border-2 border-primary">
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback>
+                          <UserIcon />
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <Button

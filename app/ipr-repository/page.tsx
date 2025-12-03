@@ -248,18 +248,7 @@ const IprRepositoryPage = () => {
               className="bg-primary text-black rounded-full hover:bg-primary/90"
             >
               {loading ? (
-                <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray="31.4 31.4"
-                    strokeDashoffset="15.7"
-                  ></circle>
-                </svg>
+                "Searching..."
               ) : (
                 "Search"
               )}

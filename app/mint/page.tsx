@@ -23,21 +23,9 @@ import {
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import {
-  Type,
-  User as UserIcon,
-  Percent,
-  FileText,
-  Plus,
-  X,
-  Sparkles,
-  Loader2,
-  Layers,
-  ShieldCheck,
-} from "lucide-react";
+import { Upload, Plus, X, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { Trash2 } from "lucide-react";
 
 interface Creator {
   name: string;
@@ -47,43 +35,16 @@ interface Creator {
   socialMedia?: { platform: string; handle: string }[];
 }
 
-export default function GeneratePage() {
+export default function MintPage() {
   const { wallet } = useWalletContext();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
-  const [prompt, setPrompt] = useState("");
   const [imageName, setImageName] = useState("");
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
 
   const [cachedImageUrl, setCachedImageUrl] = useState<string | null>(null);
-  const [remainingImages, setRemainingImages] = useState<number | null>(null);
-
-  const fetchUsage = async (address: string, email?: string | null) => {
-    try {
-      const params = new URLSearchParams();
-      if (address) params.append("walletAddress", address);
-      if (email) params.append("email", email);
-
-      const response = await fetch(`/api/user-usage?${params.toString()}`);
-      const data = await response.json();
-      if (data.remaining !== undefined) {
-        setRemainingImages(data.remaining);
-      }
-    } catch (error) {
-      console.error("Error fetching usage:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (wallet.isConnected && wallet.address) {
-      fetchUsage(wallet.address, user?.email);
-    } else {
-      setRemainingImages(null);
-    }
-  }, [wallet.isConnected, wallet.address, user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -105,67 +66,29 @@ export default function GeneratePage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [wallet.address]);
 
-  const handleGenerate = async () => {
-    if (!wallet.isConnected) {
-      toast.error("Please connect your wallet first.", {
-        description:
-          "A wallet connection is required to generate images and interact with the protocol.",
-      });
-      return;
-    }
-
-    if (!prompt.trim()) {
-      toast.error("Your imagination is the first step!", {
-        description: "Please enter a prompt to bring your vision to life.",
-      });
-      return;
-    }
-
-    const fullPrompt = prompt.trim();
-
-    setIsGenerating(true);
-    toast.loading("Generating your masterpiece...", {
-      description: "The AI is warming up. This may take a moment.",
-    });
-
-    try {
-      const response = await fetch("/api/generate-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: fullPrompt,
-          walletAddress: wallet.address,
-          email: user?.email,
-        }),
-      });
-
-      const data = await response.json();
-      toast.dismiss();
-
-      if (data.success) {
-        setGeneratedImage(`data:image/png;base64,${data.imageBuffer}`);
-        toast.success("Creation complete!", {
-          description: "Your new image has been successfully generated.",
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        toast.error("File too large", {
+          description: "Please upload an image smaller than 5MB.",
         });
-        // Refresh usage count
-        if (wallet.address) {
-          fetchUsage(wallet.address, user?.email);
-        }
-      } else {
-        throw new Error(data.error);
+        return;
       }
-    } catch (error) {
-      console.error("Error generating image:", error);
-      toast.error("Generation failed.", {
-        description:
-          "Something went wrong while generating the image. Please try again.",
-      });
-    } finally {
-      setIsGenerating(false);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setUploadedImage(event.target.result as string);
+          // Set initial image name from file name (removing extension)
+          const name = file.name.replace(/\.[^/.]+$/, "");
+          setImageName(name);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -228,7 +151,7 @@ export default function GeneratePage() {
   };
 
   const handleRegisterIP = async () => {
-    if (!generatedImage || !imageName.trim()) {
+    if (!uploadedImage || !imageName.trim()) {
       toast.error("Missing essential details.", {
         description:
           "Please provide a name for your creation before registering it.",
@@ -266,8 +189,7 @@ export default function GeneratePage() {
     });
 
     try {
-      const base64Data = generatedImage.split(",")[1];
-      const fullPrompt = prompt.trim();
+      const base64Data = uploadedImage.split(",")[1];
 
       const response = await fetch("/api/register-ip", {
         method: "POST",
@@ -277,7 +199,7 @@ export default function GeneratePage() {
         body: JSON.stringify({
           imageBuffer: base64Data,
           imageName: imageName.trim(),
-          prompt: fullPrompt,
+          prompt: description.trim() || "Uploaded Image",
           walletAddress: wallet.address,
           existingImageUrl: cachedImageUrl,
           description: description.trim(),
@@ -310,9 +232,8 @@ export default function GeneratePage() {
         }
 
         // Reset form fields
-        setPrompt("");
         setImageName("");
-        setGeneratedImage(null);
+        setUploadedImage(null);
         setDescription("");
         setTraits([]);
         setNewTraitKey("");
@@ -352,12 +273,12 @@ export default function GeneratePage() {
         className="text-center space-y-6 relative z-10"
       >
         <h1 className="text-7xl md:text-9xl font-black tracking-tighter leading-[0.9]">
-          CREATE <br />
-          <span className="neo-gradient-text text-glow">YOUR LEGACY</span>
+          MINT <br />
+          <span className="neo-gradient-text text-glow">YOUR ART</span>
         </h1>
         <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed font-light">
-          Use cutting-edge AI to generate unique visuals and instantly register
-          them as immutable IP on the Intellect Protocol.
+          Upload your existing artwork and instantly register it as immutable IP
+          on the Intellect Protocol
         </p>
       </motion.div>
 
@@ -370,81 +291,43 @@ export default function GeneratePage() {
         <Card className="neo-card border-primary/20 bg-gradient-to-br from-white/5 to-primary/5 transition-colors">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-3xl font-bold">
-              <Sparkles className="w-8 h-8 text-primary" />
-              Generator
+              <Upload className="w-8 h-8 text-primary" />
+              Upload
             </CardTitle>
             <CardDescription className="text-lg">
-              Step 1: Describe the image you want to create with AI
+              Step 1: Upload the image you want to register
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="space-y-4">
-              <Label htmlFor="prompt" className="text-xl font-semibold">
-                AI Prompt
-              </Label>
-              <Textarea
-                id="prompt"
-                placeholder="e.g., A futuristic city skyline at dusk, with flying cars and neon lights, in a synthwave style."
-                value={prompt}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setPrompt(e.target.value)
-                }
-                disabled={isGenerating}
-                className="bg-white/5 border-white/10 rounded-xl px-6 py-4 text-lg min-h-[140px] focus:outline-none focus:border-primary/50 transition-colors"
-              />
+              <div className="flex items-center justify-center w-full">
+                <Label
+                  htmlFor="dropzone-file"
+                  className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-xl cursor-pointer bg-white/5 border-white/10 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="w-10 h-10 mb-3 text-muted-foreground" />
+                    <p className="mb-2 text-sm text-muted-foreground">
+                      <span className="font-semibold">Click to upload</span> or
+                      drag and drop
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPG or WEBP (MAX. 5MB)
+                    </p>
+                  </div>
+                  <Input
+                    id="dropzone-file"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </Label>
+              </div>
             </div>
 
-            {/* Progress Bar for Credits */}
-            {remainingImages !== null && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm font-medium">
-                  <span className="text-muted-foreground">Daily Credits</span>
-                  <span
-                    className={
-                      remainingImages === 0 ? "text-red-500" : "text-primary"
-                    }
-                  >
-                    {remainingImages}/2 Remaining
-                  </span>
-                </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(remainingImages / 2) * 100}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                    className={`h-full rounded-full ${
-                      remainingImages === 0 ? "bg-red-500" : "bg-primary"
-                    }`}
-                  />
-                </div>
-                {remainingImages === 0 && (
-                  <p className="text-xs text-red-400 mt-1">
-                    You have reached your daily limit of 2 images.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <Button
-              onClick={handleGenerate}
-              disabled={
-                isGenerating || !wallet.isConnected || remainingImages === 0
-              }
-              size="lg"
-              className="w-full bg-primary text-black border-0 hover:opacity-90 transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.5)] text-lg px-12 py-8 h-auto rounded-full font-bold"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-6 h-6 mr-3 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>Generate Image</>
-              )}
-            </Button>
-
             <AnimatePresence>
-              {generatedImage && (
+              {uploadedImage && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -456,8 +339,8 @@ export default function GeneratePage() {
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.2, type: "spring" }}
-                      src={generatedImage}
-                      alt="Generated"
+                      src={uploadedImage}
+                      alt="Uploaded"
                       className="max-w-lg w-full rounded-2xl shadow-2xl border-2 border-primary/30"
                     />
                   </div>
@@ -618,6 +501,49 @@ export default function GeneratePage() {
                         </Button>
                       </div>
                     </div>
+
+                    <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-semibold">
+                            Mint License Tokens
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Automatically mint licenses for yourself
+                            immediately.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={shouldMintLicense}
+                          onChange={(e) =>
+                            setShouldMintLicense(e.target.checked)
+                          }
+                          className="w-5 h-5 rounded border-white/10 bg-white/5 text-primary focus:ring-primary"
+                        />
+                      </div>
+                      {shouldMintLicense && (
+                        <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                          <Label htmlFor="mintAmount" className="text-sm">
+                            Amount to Mint
+                          </Label>
+                          <Input
+                            id="mintAmount"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={mintLicenseAmount}
+                            onChange={(e) =>
+                              setMintLicenseAmount(
+                                parseInt(e.target.value) || 1
+                              )
+                            }
+                            className="mt-1 bg-white/5 border-white/10"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="space-y-2">
                       <Label
                         htmlFor="description"
@@ -686,43 +612,6 @@ export default function GeneratePage() {
                             </button>
                           </motion.div>
                         ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="text-base font-semibold">
-                          Mint License Tokens
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Automatically mint licenses for yourself immediately.
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={shouldMintLicense}
-                        onChange={(e) => setShouldMintLicense(e.target.checked)}
-                        className="w-5 h-5 rounded border-white/10 bg-white/5 text-primary focus:ring-primary"
-                      />
-                    </div>
-                    {shouldMintLicense && (
-                      <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-                        <Label htmlFor="mintAmount" className="text-sm">
-                          Amount to Mint
-                        </Label>
-                        <Input
-                          id="mintAmount"
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={mintLicenseAmount}
-                          onChange={(e) =>
-                            setMintLicenseAmount(parseInt(e.target.value) || 1)
-                          }
-                          className="mt-1 bg-white/5 border-white/10"
-                        />
                       </div>
                     )}
                   </div>
