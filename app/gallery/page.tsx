@@ -163,30 +163,33 @@ export default function GalleryPage() {
                     )}
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    className="w-full gap-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 transition-all duration-300"
-                    onClick={() =>
-                      (window.location.href = `/dispute/${
-                        ip.ipId
-                      }?imageUrl=${encodeURIComponent(
-                        ip.imageUrl
-                      )}&imageName=${encodeURIComponent(
-                        ip.imageName
-                      )}&prompt=${encodeURIComponent(
-                        ip.prompt
-                      )}&creatorName=${encodeURIComponent(
-                        ip.creatorName
-                      )}&creatorAddress=${encodeURIComponent(
-                        ip.creatorAddress
-                      )}&creatorAvatar=${encodeURIComponent(
-                        ip.creatorAvatar || ""
-                      )}`)
-                    }
-                  >
-                    <ShieldAlert className="w-4 h-4" />
-                    Raise Dispute
-                  </Button>
+                  {wallet.address?.toLowerCase() !==
+                    ip.creatorAddress.toLowerCase() && (
+                    <Button
+                      variant="ghost"
+                      className="w-full gap-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 transition-all duration-300"
+                      onClick={() =>
+                        (window.location.href = `/dispute/${
+                          ip.ipId
+                        }?imageUrl=${encodeURIComponent(
+                          ip.imageUrl
+                        )}&imageName=${encodeURIComponent(
+                          ip.imageName
+                        )}&prompt=${encodeURIComponent(
+                          ip.prompt
+                        )}&creatorName=${encodeURIComponent(
+                          ip.creatorName
+                        )}&creatorAddress=${encodeURIComponent(
+                          ip.creatorAddress
+                        )}&creatorAvatar=${encodeURIComponent(
+                          ip.creatorAvatar || ""
+                        )}`)
+                      }
+                    >
+                      <ShieldAlert className="w-4 h-4" />
+                      Raise Dispute
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             </motion.div>

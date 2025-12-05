@@ -103,7 +103,7 @@ export default function MintPage() {
   const [newCreatorDesc, setNewCreatorDesc] = useState("");
 
   const [licenseType, setLicenseType] = useState("commercial");
-  const [shouldMintLicense, setShouldMintLicense] = useState(false);
+  const [shouldMintLicense, setShouldMintLicense] = useState(true);
   const [mintLicenseAmount, setMintLicenseAmount] = useState(1);
 
   const addTrait = () => {
@@ -503,45 +503,31 @@ export default function MintPage() {
                     </div>
 
                     <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="text-base font-semibold">
-                            Mint License Tokens
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Automatically mint licenses for yourself
-                            immediately.
-                          </p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={shouldMintLicense}
+                      <div className="space-y-0.5">
+                        <Label className="text-base font-semibold">
+                          Mint License Tokens
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Automatically mint licenses for yourself immediately.
+                          (Required)
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        <Label htmlFor="mintAmount" className="text-sm">
+                          Amount to Mint
+                        </Label>
+                        <Input
+                          id="mintAmount"
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={mintLicenseAmount}
                           onChange={(e) =>
-                            setShouldMintLicense(e.target.checked)
+                            setMintLicenseAmount(parseInt(e.target.value) || 1)
                           }
-                          className="w-5 h-5 rounded border-white/10 bg-white/5 text-primary focus:ring-primary"
+                          className="mt-1 bg-white/5 border-white/10"
                         />
                       </div>
-                      {shouldMintLicense && (
-                        <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-                          <Label htmlFor="mintAmount" className="text-sm">
-                            Amount to Mint
-                          </Label>
-                          <Input
-                            id="mintAmount"
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={mintLicenseAmount}
-                            onChange={(e) =>
-                              setMintLicenseAmount(
-                                parseInt(e.target.value) || 1
-                              )
-                            }
-                            className="mt-1 bg-white/5 border-white/10"
-                          />
-                        </div>
-                      )}
                     </div>
 
                     <div className="space-y-2">

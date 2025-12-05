@@ -25,6 +25,13 @@ import {
   Trash2,
   ArrowRight,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 
@@ -113,7 +120,9 @@ export default function EvolvePage() {
   const [newCreatorPercent, setNewCreatorPercent] = useState<number>(0);
   const [newCreatorDesc, setNewCreatorDesc] = useState("");
 
-  const [shouldMintLicense, setShouldMintLicense] = useState(false);
+  const [licenseType, setLicenseType] = useState("commercial");
+
+  const [shouldMintLicense, setShouldMintLicense] = useState(true);
   const [mintLicenseAmount, setMintLicenseAmount] = useState(1);
 
   const addTrait = () => {
@@ -217,6 +226,7 @@ export default function EvolvePage() {
           parentIpId,
           licenseTermsId,
           mintLicenseAmount: shouldMintLicense ? mintLicenseAmount : 0,
+          licenseType,
         }),
       });
 
@@ -355,21 +365,7 @@ export default function EvolvePage() {
                   </div>
 
                   <div className="space-y-6">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="imageName"
-                        className="text-xl font-semibold"
-                      >
-                        Evolution Name
-                      </Label>
-                      <Input
-                        id="imageName"
-                        placeholder="My Evolved Creation"
-                        value={imageName}
-                        onChange={(e) => setImageName(e.target.value)}
-                        className="h-14 bg-white/5 border-white/10 rounded-xl px-6 text-lg opacity-50 cursor-not-allowed"
-                      />
-                    </div>
+                    {/* Name input removed as requested */}
 
                     <div className="space-y-2">
                       <Label
@@ -437,57 +433,84 @@ export default function EvolvePage() {
                       )}
                     </div>
 
+                    <div className="space-y-4">
+                      <Label
+                        htmlFor="licenseType"
+                        className="text-xl font-semibold"
+                      >
+                        License Type
+                      </Label>
+                      <Select
+                        onValueChange={setLicenseType}
+                        defaultValue={licenseType}
+                      >
+                        <SelectTrigger className="h-14 bg-white/5 border-white/10 rounded-xl px-6 text-lg">
+                          <SelectValue placeholder="Select a license" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="commercial">
+                            Commercial Remix
+                          </SelectItem>
+                          <SelectItem value="creative-commons">
+                            Creative Commons
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2 mt-4">
+                        <h4 className="font-semibold text-primary">
+                          License Terms:
+                        </h4>
+                        <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
+                          {licenseType === "commercial" ? (
+                            <>
+                              <li>Commercial Use: Allowed</li>
+                              <li>Attribution: Required</li>
+                              <li>Derivatives: Allowed (Reciprocal)</li>
+                              <li>Minting Fee: 1 Token (example)</li>
+                              <li>Revenue Share: 50%</li>
+                            </>
+                          ) : (
+                            <>
+                              <li>Commercial Use: Allowed</li>
+                              <li>Attribution: Required</li>
+                              <li>Derivatives: Allowed (Reciprocal)</li>
+                              <li>Minting Fee: Free</li>
+                              <li>Revenue Share: 0%</li>
+                            </>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+
                     {/* License Minting Section */}
                     <div className="space-y-4 p-6 rounded-xl bg-white/5 border border-white/10">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <Label className="text-xl font-semibold">
-                            Mint License Tokens
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Create license tokens for your evolution immediately
-                          </p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="mintLicense"
-                            checked={shouldMintLicense}
-                            onChange={(e) =>
-                              setShouldMintLicense(e.target.checked)
-                            }
-                            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <Label className="text-xl font-semibold">
+                          Mint License Tokens
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Create license tokens for your evolution immediately.
+                          (Required to allow further evolution)
+                        </p>
                       </div>
 
-                      <AnimatePresence>
-                        {shouldMintLicense && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pt-4">
-                              <Label>Amount to Mint</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={mintLicenseAmount}
-                                onChange={(e) =>
-                                  setMintLicenseAmount(Number(e.target.value))
-                                }
-                                className="mt-2 bg-black/20 border-white/10"
-                              />
-                              <p className="text-xs text-muted-foreground mt-2">
-                                These tokens allow others to use your IP
-                                according to its terms.
-                              </p>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                      <div className="pt-4">
+                        <Label>Amount to Mint</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={mintLicenseAmount}
+                          onChange={(e) =>
+                            setMintLicenseAmount(Number(e.target.value))
+                          }
+                          className="mt-2 bg-black/20 border-white/10"
+                        />
+                        <p className="text-xs text-muted-foreground mt-2">
+                          These tokens allow others to use your IP according to
+                          its terms.
+                        </p>
+                      </div>
                     </div>
 
                     {/* Creators Section (Simplified for brevity, can be expanded if needed) */}

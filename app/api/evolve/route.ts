@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
             userId,
             parentIpId,
             licenseTermsId,
-            mintLicenseAmount
+            mintLicenseAmount,
+            licenseType
         } = await request.json();
 
         if (
@@ -109,31 +110,38 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // If user wants to mint license tokens
-        if (mintLicenseAmount && mintLicenseAmount > 0) {
-            try {
-                // 1. Register and Attach License Terms to the new Derivative IP
-                const { commercialRemixTerms } = await import('@/lib/story-protocol');
-                const attachResponse = await storyClient.license.registerPilTermsAndAttach({
-                    ipId: response.ipId as `0x${string}`,
-                    licenseTermsData: [{ terms: commercialRemixTerms }]
-                });
+        let derivativeLicenseTermsIds: string[] = [];
 
-                if (attachResponse.licenseTermsIds && attachResponse.licenseTermsIds.length > 0) {
-                    // 2. Mint License Tokens
-                    await storyClient.license.mintLicenseTokens({
-                        licenseTermsId: attachResponse.licenseTermsIds[0],
-                        licensorIpId: response.ipId as `0x${string}`,
-                        receiver: walletAddress as `0x${string}`,
-                        amount: mintLicenseAmount,
-                        maxMintingFee: BigInt(0),
-                        maxRevenueShare: 100
-                    });
-                }
-            } catch (mintError) {
-                console.error("Error minting license tokens for derivative:", mintError);
-                // Continue execution, don't fail the whole request
+        // Always attach license terms and mint tokens to ensure evolution loop continues
+        // Default to 1 token if not specified
+        const finalMintAmount = mintLicenseAmount && mintLicenseAmount > 0 ? mintLicenseAmount : 1;
+
+        try {
+            // 1. Register and Attach License Terms to the new Derivative IP
+            const { commercialRemixTerms, creativeCommonsTerms } = await import('@/lib/story-protocol');
+            const selectedTerms = licenseType === 'creative-commons' ? creativeCommonsTerms : commercialRemixTerms;
+
+            const attachResponse = await storyClient.license.registerPilTermsAndAttach({
+                ipId: response.ipId as `0x${string}`,
+                licenseTermsData: [{ terms: selectedTerms }]
+            });
+
+            if (attachResponse.licenseTermsIds && attachResponse.licenseTermsIds.length > 0) {
+                derivativeLicenseTermsIds = attachResponse.licenseTermsIds.map(id => id.toString());
+
+                // 2. Mint License Tokens
+                await storyClient.license.mintLicenseTokens({
+                    licenseTermsId: attachResponse.licenseTermsIds[0],
+                    licensorIpId: response.ipId as `0x${string}`,
+                    receiver: walletAddress as `0x${string}`,
+                    amount: finalMintAmount,
+                    maxMintingFee: BigInt(0),
+                    maxRevenueShare: 100
+                });
             }
+        } catch (mintError) {
+            console.error("Error minting license tokens for derivative:", mintError);
+            // Continue execution, don't fail the whole request
         }
 
         const explorerUrl = `https://aeneid.explorer.story.foundation/ipa/${response.ipId}`;
@@ -146,9 +154,10 @@ export async function POST(request: NextRequest) {
             txHash: response.txHash,
             imageName: imageName,
             prompt: prompt,
-            licenseType: "Evolution", // Custom type for UI
+            licenseType: licenseType || "Evolution", // Custom type for UI
             registeredAt: new Date().toISOString(),
             parentIpId: parentIpId,
+            licenseTermsIds: derivativeLicenseTermsIds,
         };
 
         // Update user document in Firestore

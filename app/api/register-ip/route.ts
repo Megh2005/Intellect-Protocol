@@ -4,6 +4,7 @@ import { uploadToIPFS } from '@/lib/pinata';
 import { createHash } from 'crypto';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, updateDoc, arrayUnion, doc } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 export async function POST(request: NextRequest) {
     try {
@@ -140,14 +141,16 @@ export async function POST(request: NextRequest) {
         let mintTxHash = '';
         let licenseTokenIds: string[] = [];
 
-        // Auto-mint license tokens if requested
-        if (mintLicenseAmount && mintLicenseAmount > 0 && response.licenseTermsIds && response.licenseTermsIds.length > 0 && response.ipId) {
+        // Auto-mint license tokens (Enforced default: 1)
+        const finalMintAmount = mintLicenseAmount && mintLicenseAmount > 0 ? mintLicenseAmount : 1;
+
+        if (response.licenseTermsIds && response.licenseTermsIds.length > 0 && response.ipId) {
             try {
                 const mintResponse = await storyClient.license.mintLicenseTokens({
                     licenseTermsId: response.licenseTermsIds[0],
                     licensorIpId: response.ipId as `0x${string}`,
                     receiver: walletAddress as `0x${string}`,
-                    amount: mintLicenseAmount,
+                    amount: finalMintAmount,
                     maxMintingFee: BigInt(0), // disabled
                     maxRevenueShare: 100, // default
                 });
@@ -155,7 +158,7 @@ export async function POST(request: NextRequest) {
                 licenseTokenIds = mintResponse.licenseTokenIds?.map(id => id.toString()) || [];
             } catch (mintError) {
                 console.error("Error auto-minting licenses:", mintError);
-                // We don't fail the whole request if minting fails, just log it
+                toast.error("Error auto-minting licenses: " + mintError);
             }
         }
 

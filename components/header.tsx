@@ -1,5 +1,5 @@
-"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useWalletContext } from "@/components/wallet-provider";
 import {
@@ -26,6 +26,7 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -83,16 +84,23 @@ export function Header() {
           </Link>
 
           <nav className="hidden md:flex gap-8 items-center">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <link.icon className="w-4 h-4" />
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`text-sm font-medium transition-colors flex items-center gap-2 ${
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-primary"
+                  }`}
+                >
+                  <link.icon className="w-4 h-4" />
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-4">
@@ -152,17 +160,24 @@ export function Header() {
             className="fixed inset-0 z-40 bg-black/80 backdrop-blur-lg flex flex-col items-center justify-center"
           >
             <nav className="flex flex-col gap-10 text-center">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-3xl font-bold hover:text-primary transition-colors flex items-center gap-4"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <link.icon className="w-8 h-8" />
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`text-3xl font-bold transition-colors flex items-center gap-4 ${
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <link.icon className="w-8 h-8" />
+                    {link.label}
+                  </Link>
+                );
+              })}
             </nav>
             <div className="mt-12">
               {wallet.isConnected ? (
