@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   GitMerge,
   ShieldAlert,
+  Coins,
 } from "lucide-react";
 import {
   Card,
@@ -16,9 +17,20 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useWalletContext } from "@/components/wallet-provider";
+import { toast } from "sonner";
 
 interface IPAsset {
   ipId: string;
@@ -40,6 +52,14 @@ export default function GalleryPage() {
   const [ips, setIps] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Tip Modal State
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [selectedIpForTip, setSelectedIpForTip] = useState<IPAsset | null>(
+    null
+  );
+  const [tipAmount, setTipAmount] = useState("1");
+  const [isTipping, setIsTipping] = useState(false);
+
   useEffect(() => {
     const fetchGallery = async () => {
       try {
@@ -58,6 +78,37 @@ export default function GalleryPage() {
 
     fetchGallery();
   }, []);
+
+  const handleTip = async () => {
+    if (!selectedIpForTip || !tipAmount) return;
+
+    setIsTipping(true);
+    try {
+      const response = await fetch("/api/pay-ipa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiverIpId: selectedIpForTip.ipId,
+          amount: tipAmount,
+          payerIpId: null, // null implies zeroAddress/tipping at the backend
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`Successfully tipped ${tipAmount} WIP!`);
+        setIsTipModalOpen(false);
+        setTipAmount("1");
+      } else {
+        throw new Error(data.error || "Failed to tip");
+      }
+    } catch (error: any) {
+      console.error("Tip error:", error);
+      toast.error("Failed to tip: " + error.message);
+    } finally {
+      setIsTipping(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-12 pt-6 pb-12 min-h-screen">
@@ -161,6 +212,18 @@ export default function GalleryPage() {
                         Evolve
                       </Button>
                     )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                      onClick={() => {
+                        setSelectedIpForTip(ip);
+                        setIsTipModalOpen(true);
+                      }}
+                      title="Tip Creator"
+                    >
+                      <Coins className="w-5 h-5" />
+                    </Button>
                   </div>
 
                   {wallet.address?.toLowerCase() !==
@@ -210,6 +273,59 @@ export default function GalleryPage() {
           )}
         </div>
       )}
+
+      <Dialog open={isTipModalOpen} onOpenChange={setIsTipModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tip Creator</DialogTitle>
+            <DialogDescription>
+              Send WIP tokens to support the creator of{" "}
+              <strong>{selectedIpForTip?.imageName}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="amount" className="text-right">
+                Amount (WIP)
+              </Label>
+              <Input
+                id="amount"
+                type="number"
+                value={tipAmount}
+                onChange={(e) => setTipAmount(e.target.value)}
+                className="col-span-3"
+                min="0.1"
+                step="0.1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setIsTipModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTip}
+              disabled={isTipping}
+              className="bg-yellow-500 text-black hover:bg-yellow-400"
+            >
+              {isTipping ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Coins className="mr-2 h-4 w-4" />
+                  Send Tip
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
