@@ -12,6 +12,7 @@ import {
   X,
   User as UserIcon,
   Image as ImageIcon,
+  Scale,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,7 +20,6 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Logo } from "@/components/icons/logo";
 
 export function Header() {
   const { wallet, connectWallet } = useWalletContext();
@@ -60,6 +60,11 @@ export function Header() {
       label: "IPR Hub",
       icon: Wallet,
     },
+    {
+      href: "/enforcement",
+      label: "Enforcement",
+      icon: Scale,
+    },
   ];
 
   if (user) {
@@ -73,7 +78,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-4 z-50 w-[95%] max-w-7xl mx-auto rounded-full glass mt-4 mb-8 border border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-md bg-black/40">
+      <header className="sticky top-4 z-50 w-[98%] max-w-none mx-auto rounded-full glass mt-4 mb-8 border border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-md bg-black/40">
         <div className="px-6 h-16 flex justify-between items-center">
           <Link
             href="/"
