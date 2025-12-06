@@ -22,6 +22,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="shortcut icon"
+          href="https://res.cloudinary.com/dlf6jkg3d/image/upload/v1765005966/ic_coin_new_cg1ovb.png"
+          type="image/x-icon"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="https://res.cloudinary.com/dlf6jkg3d/image/upload/v1765005966/ic_coin_new_cg1ovb.png"
+        />
+      </head>
       <body className={outfit.className}>
         <ThemeProvider
           attribute="class"

@@ -365,7 +365,21 @@ export default function EvolvePage() {
                   </div>
 
                   <div className="space-y-6">
-                    {/* Name input removed as requested */}
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="imageName"
+                        className="text-xl font-semibold"
+                      >
+                        Evolution Name
+                      </Label>
+                      <Input
+                        id="imageName"
+                        value={imageName}
+                        onChange={(e) => setImageName(e.target.value)}
+                        placeholder="Name your evolution"
+                        className="bg-white/5 border-white/10 rounded-xl px-6 py-4 text-lg"
+                      />
+                    </div>
 
                     <div className="space-y-2">
                       <Label

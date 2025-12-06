@@ -212,18 +212,24 @@ export default function GalleryPage() {
                         Evolve
                       </Button>
                     )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
-                      onClick={() => {
-                        setSelectedIpForTip(ip);
-                        setIsTipModalOpen(true);
-                      }}
-                      title="Tip Creator"
+                    <motion.div
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      whileTap={{ scale: 0.9 }}
                     >
-                      <Coins className="w-5 h-5" />
-                    </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-primary hover:text-primary hover:bg-primary/10 border border-primary/50 hover:border-primary transition-all duration-300 relative overflow-hidden"
+                        onClick={() => {
+                          setSelectedIpForTip(ip);
+                          setIsTipModalOpen(true);
+                        }}
+                        title="Pay Revenue"
+                      >
+                        <div className="absolute inset-0 bg-primary/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <Coins className="w-5 h-5 relative z-10" />
+                      </Button>
+                    </motion.div>
                   </div>
 
                   {wallet.address?.toLowerCase() !==

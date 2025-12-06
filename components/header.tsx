@@ -79,7 +79,11 @@ export function Header() {
             href="/"
             className="text-2xl font-bold tracking-tighter hover:opacity-80 transition-opacity flex items-center gap-2"
           >
-            <Logo />
+            <img
+              src="https://res.cloudinary.com/dlf6jkg3d/image/upload/v1765005966/ic_coin_new_cg1ovb.png"
+              alt="Intellect Protocol Logo"
+              className="w-8 h-8 object-contain"
+            />
             <span className="text-primary">Intellect Protocol</span>
           </Link>
 
