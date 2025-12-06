@@ -274,27 +274,27 @@ export async function POST(req: NextRequest) {
                 where("walletAddress", "==", walletAddress),
                 where("timestamp", ">=", twentyFourHoursAgo)
             );
-            
+
             const snapshot = await getDocs(usageQuery);
             const usageCount = snapshot.size;
 
             if (usageCount >= 2) {
-                 // To find the reset time properly, we should ideally get the oldest doc from the snapshot
-                 // Since we have the snapshot, let's sort it in memory to find the oldest
-                 const sortedDocs = snapshot.docs.sort((a, b) => {
-                     const dateA = a.data().timestamp.toDate();
-                     const dateB = b.data().timestamp.toDate();
-                     return dateA.getTime() - dateB.getTime();
-                 });
-                 
-                 const oldestRequest = sortedDocs[0];
-                 let resetTime = "24 hours";
+                // To find the reset time properly, we should ideally get the oldest doc from the snapshot
+                // Since we have the snapshot, let's sort it in memory to find the oldest
+                const sortedDocs = snapshot.docs.sort((a, b) => {
+                    const dateA = a.data().timestamp.toDate();
+                    const dateB = b.data().timestamp.toDate();
+                    return dateA.getTime() - dateB.getTime();
+                });
 
-                 if (oldestRequest && oldestRequest.data().timestamp) {
-                     const oldestTime = oldestRequest.data().timestamp.toDate();
-                     const resetDate = new Date(oldestTime.getTime() + 24 * 60 * 60 * 1000);
-                     resetTime = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                 }
+                const oldestRequest = sortedDocs[0];
+                let resetTime = "24 hours";
+
+                if (oldestRequest && oldestRequest.data().timestamp) {
+                    const oldestTime = oldestRequest.data().timestamp.toDate();
+                    const resetDate = new Date(oldestTime.getTime() + 24 * 60 * 60 * 1000);
+                    resetTime = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
 
                 return NextResponse.json(
                     {
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
                     { status: 429 }
                 );
             }
-            remainingCredits = 2 - usageCount - 1; 
+            remainingCredits = 2 - usageCount - 1;
         }
 
         const result = await findBestAdvocates(description, country);
@@ -319,14 +319,14 @@ export async function POST(req: NextRequest) {
 
         // Log the successful search to Firebase
         if (walletAddress) {
-             const historyCollection = collection(firebaseDb, "enforcement_history");
-             await addDoc(historyCollection, {
-                 walletAddress,
-                 description,
-                 country,
-                 timestamp: new Date(), // Firebase will store this as Timestamp
-                 selectedAdvocate: result.selectedAdvocate.name
-             });
+            const historyCollection = collection(firebaseDb, "enforcement_history");
+            await addDoc(historyCollection, {
+                walletAddress,
+                description,
+                country,
+                timestamp: new Date(), // Firebase will store this as Timestamp
+                selectedAdvocate: result.selectedAdvocate.name
+            });
         }
 
         // Enhanced response with clear reason display for single best match
