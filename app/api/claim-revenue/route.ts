@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
             claimRevenue = await storyClient.royalty.claimAllRevenue({
                 ancestorIpId: ipId as `0x${string}`,
                 claimer: ipId as `0x${string}`, // The IP Account itself owns the revenue rights usually
-                currencyTokens: [WIP_TOKEN_ADDRESS],
+                currencyTokens: new Array(childIpIds.length).fill(WIP_TOKEN_ADDRESS),
                 childIpIds: childIpIds as `0x${string}`[],
-                royaltyPolicies: [ROYALTY_POLICY_LAP],
+                royaltyPolicies: new Array(childIpIds.length).fill(ROYALTY_POLICY_LAP),
                 claimOptions: {
                     autoTransferAllClaimedTokensFromIp: true,
                     autoUnwrapIpTokens: true,

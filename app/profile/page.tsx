@@ -216,16 +216,16 @@ export default function ProfilePage() {
                                   .join(", ");
                               }
                               toast.success(
-                                `Claimed: ${claimedAmounts || "0 WIP"}`,
+                                `Claimed`,
                                 { id: "claim-" + ip.ipId }
                               );
                             } else {
-                              toast.error("Failed to claim: " + data.error, {
+                              toast.error("Failed to claim", {
                                 id: "claim-" + ip.ipId,
                               });
                             }
                           } catch (e: any) {
-                            toast.error("Error: " + e.message, {
+                            toast.error("Error", {
                               id: "claim-" + ip.ipId,
                             });
                           }
