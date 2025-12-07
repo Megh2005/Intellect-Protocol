@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { MongoClient } from "mongodb";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db as firebaseDb } from "@/lib/firebase"; // Import Firebase DB
-import { collection, query, where, getDocs, addDoc, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
+
 
 const MONGO_URI = process.env.MONGODB_URI!;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
@@ -129,7 +130,6 @@ ${advocatesText}
 
 function calculateOverallConfidence(scores: number[]): number {
     if (scores.length === 0) return 0;
-    // For single advocate, just return the score
     return scores[0];
 }
 
@@ -261,49 +261,60 @@ export async function POST(req: NextRequest) {
 
         // Check for rate limiting if wallet address is provided
         const { walletAddress } = body;
-        let remainingCredits = 2; // Default for non-wallet users (maybe restrict access later?)
+        let remainingCredits = 5; // Default max credits
 
         if (walletAddress) {
-            // Using Firebase Firestore for rate limiting
-            const historyCollection = collection(firebaseDb, "enforcement_history");
-            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            // using "users" collection for rate limiting
+            const usersCollection = collection(firebaseDb, "users");
+            const q = query(usersCollection, where("walletAddress", "==", walletAddress));
+            const querySnapshot = await getDocs(q);
 
-            // Query events for this wallet in the last 24 hours
-            const usageQuery = query(
-                historyCollection,
-                where("walletAddress", "==", walletAddress),
-                where("timestamp", ">=", twentyFourHoursAgo)
-            );
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                const userData = userDoc.data();
+                const userRef = doc(firebaseDb, "users", userDoc.id);
 
-            const snapshot = await getDocs(usageQuery);
-            const usageCount = snapshot.size;
-
-            if (usageCount >= 2) {
-                // To find the reset time properly, we should ideally get the oldest doc from the snapshot
-                // Since we have the snapshot, let's sort it in memory to find the oldest
-                const sortedDocs = snapshot.docs.sort((a, b) => {
-                    const dateA = a.data().timestamp.toDate();
-                    const dateB = b.data().timestamp.toDate();
-                    return dateA.getTime() - dateB.getTime();
-                });
-
-                const oldestRequest = sortedDocs[0];
-                let resetTime = "24 hours";
-
-                if (oldestRequest && oldestRequest.data().timestamp) {
-                    const oldestTime = oldestRequest.data().timestamp.toDate();
-                    const resetDate = new Date(oldestTime.getTime() + 24 * 60 * 60 * 1000);
-                    resetTime = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                // Check if user is currently blocked
+                if (userData.enforcementBlockExpiresAt) {
+                    const blockExpiresAt = userData.enforcementBlockExpiresAt.toDate(); // Convert Firestore Timestamp to Date
+                    if (new Date() < blockExpiresAt) {
+                        const resetTime = blockExpiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        return NextResponse.json(
+                            {
+                                error: `Daily limit reached. You get 5 free searches before a 24-hour cooldown. Next credit available at ${resetTime}.`,
+                            },
+                            { status: 429 }
+                        );
+                    } else {
+                        // Block has expired, reset counter and remove block
+                        await updateDoc(userRef, {
+                            enforcementCount: 0,
+                            enforcementBlockExpiresAt: null // Remove the block field
+                        });
+                        userData.enforcementCount = 0; // Local update for current logic
+                    }
                 }
 
-                return NextResponse.json(
-                    {
-                        error: `Daily limit reached. You get 2 free searches every 24 hours. Next credit available at ${resetTime}.`,
-                    },
-                    { status: 429 }
-                );
+                // Check current count
+                const currentCount = userData.enforcementCount || 0;
+
+                if (currentCount >= 5) {
+                    // Apply block if limit reached (should be captured by blockExpiresAt usually, but for safety/race conditions)
+                    const blockExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    await updateDoc(userRef, {
+                        enforcementBlockExpiresAt: blockExpires
+                    });
+                    const resetTime = blockExpires.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return NextResponse.json(
+                        {
+                            error: `Daily limit reached. You get 5 free searches before a 24-hour cooldown. Next credit available at ${resetTime}.`,
+                        },
+                        { status: 429 }
+                    );
+                }
+
+                remainingCredits = 5 - currentCount;
             }
-            remainingCredits = 2 - usageCount - 1;
         }
 
         const result = await findBestAdvocates(description, country);
@@ -317,16 +328,28 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Log the successful search to Firebase
+        // Increment counter after successful search
         if (walletAddress) {
-            const historyCollection = collection(firebaseDb, "enforcement_history");
-            await addDoc(historyCollection, {
-                walletAddress,
-                description,
-                country,
-                timestamp: new Date(), // Firebase will store this as Timestamp
-                selectedAdvocate: result.selectedAdvocate.name
-            });
+            const usersCollection = collection(firebaseDb, "users");
+            const q = query(usersCollection, where("walletAddress", "==", walletAddress));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                const userRef = doc(firebaseDb, "users", userDoc.id);
+                const newCount = (userDoc.data().enforcementCount || 0) + 1;
+
+                const updates: any = {
+                    enforcementCount: newCount
+                };
+
+                if (newCount >= 5) {
+                    updates.enforcementBlockExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                }
+
+                await updateDoc(userRef, updates);
+                remainingCredits = 5 - newCount;
+            }
         }
 
         // Enhanced response with clear reason display for single best match

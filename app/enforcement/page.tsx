@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import {
@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
   Sparkles,
+  Clock
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useWalletContext } from "@/components/wallet-provider";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 interface AdvocateDetails {
   name: string;
@@ -64,6 +67,50 @@ export default function EnforcementPage() {
   const [result, setResult] = useState<EnforcementResponse | null>(null);
   const [error, setError] = useState("");
   const [credits, setCredits] = useState<number | null>(null);
+  const [nextCreditTime, setNextCreditTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!wallet?.address) {
+      setCredits(null);
+      setNextCreditTime(null);
+      return;
+    }
+
+    const usersCollection = collection(db, "users");
+    const q = query(usersCollection, where("walletAddress", "==", wallet.address));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const userData = snapshot.docs[0].data();
+        const enforcementCount = userData.enforcementCount || 0;
+        const blockExpiresAt = userData.enforcementBlockExpiresAt;
+
+        if (blockExpiresAt) {
+          const blockDate = blockExpiresAt.toDate();
+          if (new Date() < blockDate) {
+            setCredits(0);
+            setNextCreditTime(blockDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+          } else {
+            // Block expired but not yet cleaned up by backend (will happen on next req), 
+            // but for UI purposes we can show full credits or effectively 5/5 if we assume reset.
+            setCredits(5);
+            setNextCreditTime(null);
+          }
+        } else {
+          setCredits(Math.max(0, 5 - enforcementCount));
+          setNextCreditTime(null);
+        }
+      } else {
+        // New user or no doc yet, default to 5
+        setCredits(5);
+        setNextCreditTime(null);
+      }
+    }, (err) => {
+      console.error("Error fetching user credits:", err);
+    });
+
+    return () => unsubscribe();
+  }, [wallet?.address]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,14 +144,13 @@ export default function EnforcementPage() {
       setResult(response.data);
       setIssue(""); // Reset prompt as requested
 
-      if (response.data.remainingCredits !== undefined) {
-        setCredits(response.data.remainingCredits);
-      }
+      // We rely on the snapshot listener to update credits, but we can also use response data if immediate feedback needed
+      // snapshot is usually fast enough.
     } catch (err: any) {
       console.error(err);
       setError(
         err.response?.data?.error ||
-          "Failed to find an advocate. Please try again."
+        "Failed to find an advocate. Please try again."
       );
     } finally {
       setLoading(false);
@@ -151,17 +197,22 @@ export default function EnforcementPage() {
                 </CardDescription>
               </div>
               {credits !== null && (
-                <div className="text-right">
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="text-right bg-black/20 p-3 rounded-lg border border-white/5 backdrop-blur-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
                     Daily Credits
                   </p>
                   <p
-                    className={`text-2xl font-bold ${
-                      credits === 0 ? "text-red-500" : "text-primary"
-                    }`}
+                    className={`text-2xl font-bold font-mono ${credits === 0 ? "text-red-500" : "text-primary"
+                      }`}
                   >
-                    {credits}/2
+                    {credits}/5
                   </p>
+                  {nextCreditTime && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-red-400">
+                      <Clock className="w-3 h-3" />
+                      Next: {nextCreditTime}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -261,9 +312,8 @@ export default function EnforcementPage() {
               <div className="mx-auto w-28 h-28 rounded-full bg-gradient-to-br from-primary to-purple-600 p-[3px] mb-4 shadow-xl">
                 <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
                   <img
-                    src={`https://robohash.org/${
-                      result.bestMatch.advocateDetails.name.split(" ")[0]
-                    }`}
+                    src={`https://robohash.org/${result.bestMatch.advocateDetails.name.split(" ")[0]
+                      }`}
                     alt={result.bestMatch.advocateDetails.name}
                     className="w-full h-full object-cover"
                   />
@@ -332,7 +382,6 @@ export default function EnforcementPage() {
 
             <CardHeader>
               <CardTitle className="flex items-center gap-3 text-2xl font-bold">
-                <SparklesIcon className="w-6 h-6 text-yellow-400" />
                 AI Match Analysis
               </CardTitle>
               <CardDescription className="text-lg">
