@@ -534,7 +534,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex gap-6">
             <Link
-              href="#"
+              href="/terms"
               className="text-muted-foreground hover:text-primary transition-colors"
             >
               Terms of Service
